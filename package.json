@@ -1,0 +1,40 @@
+{
+  "name": "bolt-js-assistant-template",
+  "version": "1.0.0",
+  "description": "A template for building Slack app Assistants",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/app.js",
+    "dev": "tsc -w",
+    "lint": "npx @biomejs/biome check src/**/*.ts",
+    "lint:fix": "npx @biomejs/biome check --write src/**/*.ts"
+  },
+  "author": "Slack Technologies, LLC",
+  "license": "MIT",
+  "keywords": [
+    "slack",
+    "bolt",
+    "slackapi"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/slack-samples/bolt-js-assistant-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/slack-samples/bolt-js-assistant-template/issues"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@modelcontextprotocol/sdk": "^1.0.3",
+    "@slack/bolt": "^4.1.1",
+    "dotenv": "~16.4.5",
+    "openai": "^4.74.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.5",
+    "typescript": "^5.3.3"
+  }
+}
