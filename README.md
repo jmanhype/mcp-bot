@@ -1,94 +1,99 @@
-# App Agent & Assistant Template (Bolt for JavaScript)
+# Microsoft Bot - AI Assistant with MCP Integration
 
-This Bolt for JavaScript template demonstrates how to build [Agents & Assistants](https://api.slack.com/docs/apps/ai) in Slack.
+A Slack AI assistant powered by Claude 3.5 Sonnet that combines Microsoft's enthusiasm with modern AI capabilities. The bot integrates the Model Context Protocol (MCP) to enable dynamic tool usage and extensibility.
 
-## Setup
+## Features
 
-Before getting started, make sure you have a development workspace where you have permissions to install apps. If you don’t have one setup, go ahead and [create one](https://slack.com/create).
+- 🤖 Microsoft-themed AI assistant with Claude 3.5 Sonnet integration
+- 🔧 Dynamic tool management through MCP (Model Context Protocol)
+- 📊 Channel summarization capabilities
+- 💬 Threaded conversations with context awareness
+- 🛠️ Extensible tool system with runtime server management
 
-### Developer Program
+## Prerequisites
 
-Join the [Slack Developer Program](https://api.slack.com/developer-program) for exclusive access to sandbox environments for building and testing your apps, tooling, and resources created to help you build and grow.
+- Slack workspace with admin permissions
+- Anthropic API key
+- Node.js installed
+- (Optional) Python with uv installed for Python-based tools
+
+## Environment Variables
+
+Create a `.env` file with the following:
+
+```env
+SLACK_BOT_TOKEN=xoxb-your-bot-token
+SLACK_APP_TOKEN=xapp-your-app-token
+ANTHROPIC_API_KEY=your-anthropic-key
+```
 
 ## Installation
 
-### Create a Slack App
-
-1. Open [https://api.slack.com/apps/new](https://api.slack.com/apps/new) and
-   choose "From an app manifest"
-2. Choose the workspace you want to install the application to
-3. Copy the contents of [manifest.json](./manifest.json) into the text box that
-   says `*Paste your manifest code here*` (within the JSON tab) and click _Next_
-4. Review the configuration and click _Create_
-5. You'll then be redirected to App Settings. Visit the **Install App** page and install your app.
-
-### Environment Variables
-
-Before you can run the app, you'll need to store some environment variables.
-
-1. Rename `.env.sample` to `.env`
-2. Open your apps setting page from
-   [this list](https://api.slack.com/apps), click _OAuth & Permissions_ in the
-   left hand menu, then copy the _Bot User OAuth Token_ into your `.env` file
-   under `SLACK_BOT_TOKEN`
-3. Click _Basic Information_ from the left hand menu and follow the steps in the
-   _App-Level Tokens_ section to create an app-level token with the
-   `connections:write` scope. Copy that token into your `.env` as
-   `SLACK_APP_TOKEN`.
-
-### Local Project
-
-```zsh
-# Clone this project onto your machine
-git clone https://github.com/slack-samples/bolt-js-assistant-template.git
-
-# Change into this project directory
-cd bolt-js-assistant-template
-
-# Install dependencies
+1. Clone the repository
+2. Install dependencies:
+```bash
 npm install
+```
+3. Create and configure your Slack app:
+   - Create a new Slack app at https://api.slack.com/apps
+   - Add necessary bot scopes (messages, channels, etc.)
+   - Install the app to your workspace
+   - Copy the bot and app tokens to your `.env` file
 
-# Run Bolt server
+## MCP Server Integration
+
+The bot supports dynamic integration with MCP servers. Two example servers are included:
+
+1. Amazon Fresh Server
+2. Python Local Server
+
+You can add new MCP servers at runtime using the bot's commands:
+
+```
+add_mcp_server [name] [command] [args...]
+remove_mcp_server [name]
+list_mcp_servers
+```
+
+## Running the Bot
+
+```bash
 npm start
 ```
 
-### Linting
+## Features in Detail
 
-```zsh
-# Run lint for code formatting and linting
-npm run lint
+### Channel Summarization
+Users can request a summary of recent channel activity using the command:
+```
+Assistant, please summarize the activity in this channel!
 ```
 
-## Project Structure
+### Conversation Context
+The bot maintains conversation context within threads and can:
+- Process message history
+- Handle tool calls dynamically
+- Maintain consistent Microsoft-themed personality
+- Format messages appropriately for Slack
 
-### `manifest.json`
+### Tool Integration
+- Dynamic tool discovery from MCP servers
+- Runtime server management
+- Tool call processing with result handling
+- Automatic server reconnection
 
-`manifest.json` is a configuration for Slack apps. With a manifest, you can create an app with a pre-defined configuration, or adjust the configuration of an existing app.
+## Development
 
-### `app.js`
+### Project Structure
+- `src/app.ts`: Main application logic
+- `src/mcp-manager.ts`: MCP server management
+- Tool servers: Separate processes that provide additional functionality
 
-`app.js` is the entry point for the application and is the file you'll run to start the server. This project aims to keep this file as thin as possible, primarily using it as a way to route inbound requests.
+### Adding New Tools
+1. Create a new MCP-compatible server
+2. Add the server using the bot's `add_mcp_server` command
+3. Tools will be automatically discovered and made available
 
-## App Distribution / OAuth
+## License
 
-Only implement OAuth if you plan to distribute your application across multiple workspaces. A separate `app-oauth.js` file can be found with relevant OAuth settings.
-
-When using OAuth, Slack requires a public URL where it can send requests. In this template app, we've used [`ngrok`](https://ngrok.com/download). Checkout [this guide](https://ngrok.com/docs#getting-started-expose) for setting it up.
-
-Start `ngrok` to access the app on an external network and create a redirect URL for OAuth.
-
-```
-ngrok http 3000
-```
-
-This output should include a forwarding address for `http` and `https` (we'll use `https`). It should look something like the following:
-
-```
-Forwarding   https://3cb89939.ngrok.io -> http://localhost:3000
-```
-
-Navigate to **OAuth & Permissions** in your app configuration and click **Add a Redirect URL**. The redirect URL should be set to your `ngrok` forwarding address with the `slack/oauth_redirect` path appended. For example:
-
-```
-https://3cb89939.ngrok.io/slack/oauth_redirect
-```
+[Add your license information here]
