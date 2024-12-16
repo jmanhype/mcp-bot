@@ -5,15 +5,29 @@ interface MCPServer {
   name: string;
   command: string;
   args: string[];
+  env?: Record<string, string>;
   client?: Client;
 }
 
 class MCPServerManager {
   private servers: Map<string, MCPServer> = new Map();
   
-  async addServer(name: string, command: string, args: string[]): Promise<void> {
+  async addServer(
+    name: string, 
+    command: string, 
+    args: string[], 
+    env: NodeJS.ProcessEnv = process.env
+  ): Promise<void> {
     if (this.servers.has(name)) {
       throw new Error(`Server ${name} already exists`);
+    }
+
+    // Convert environment variables to strings
+    const stringEnv: Record<string, string> = {};
+    for (const [key, value] of Object.entries(env)) {
+      if (value !== undefined) {
+        stringEnv[key] = value;
+      }
     }
 
     const client = new Client(
@@ -26,10 +40,14 @@ class MCPServerManager {
       }
     );
 
-    const transport = new StdioClientTransport({ command, args });
+    const transport = new StdioClientTransport({ 
+      command, 
+      args,
+      env: stringEnv, // Pass string environment to transport
+    });
     await client.connect(transport);
 
-    this.servers.set(name, { name, command, args, client });
+    this.servers.set(name, { name, command, args, env: stringEnv, client });
   }
 
   async removeServer(name: string): Promise<void> {

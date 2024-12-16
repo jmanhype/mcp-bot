@@ -329,22 +329,48 @@ const assistant = new Assistant({
   },
 });
 
+/** Add message handler for channel messages */
+app.message(async ({ message, say }) => {
+  const msg = message as SlackMessage;
+  
+  // Only handle channel messages, not DMs
+  if (msg.channel_type !== 'channel' && msg.channel_type !== 'group') {
+    return;
+  }
+
+  // Don't respond to messages in threads
+  if ('thread_ts' in msg) {
+    return;
+  }
+
+  // Don't respond if we don't have a timestamp
+  if (!msg.ts) {
+    return;
+  }
+
+  try {
+    // Just start a thread with initial message
+    await say({
+      text: "Hi! I'm your Microsoft Certified™ assistant. How can I help you today? *adjusts glasses professionally*",
+      thread_ts: msg.ts,
+    });
+  } catch (error) {
+    console.error("Error starting thread:", error);
+  }
+});
+
 app.assistant(assistant);
 
 /** Start the MCP Client and Bolt App */
 (async () => {
   try {
-    // Add default MCP server if needed
-    // await mcpManager.addServer("amazon-fresh", "node", [
-    //   "/Users/speed/mcp-bot/amazon-fresh-server/build/index.js",
-    // ]);
-
-    // await mcpManager.addServer("python-local", "uv", [
-    //   "--directory",
-    //   "/Users/speed/mcp-bot/python_local",
-    //   "run",
-    //   "python-local",
-    // ]);
+    // Add dspy-docs MCP server with environment variables
+    await mcpManager.addServer(
+      "dspy-docs",
+      "node",
+      ["/Users/speed/mcp-bot/MCP/dspy-docs-server/build/index.js"],
+      process.env
+    );
 
     // Start Bolt app
     await app.start();
@@ -477,4 +503,6 @@ interface SlackMessage {
   user?: string;
   bot_id?: string;
   subtype?: string;
+  channel_type?: string;
+  ts?: string;
 }

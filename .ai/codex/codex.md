@@ -162,6 +162,14 @@ E004:
 - Prevention: Review required bot features and enable necessary settings upfront
 - Related: L017
 
+L018:
+
+- Context: MCP/dspy-docs-server Integration
+- Insight: Implements a DSPy documentation server using MCP protocol
+- Application: Provides DSPy documentation access through get_dspy_docs tool
+- Impact: Enables real-time access to DSPy documentation, examples, and API references
+- Related: L010, L014
+
 # Slack Bot Setup Guide
 
 ## Environment Setup
@@ -171,6 +179,7 @@ E004:
 SLACK_APP_TOKEN=xapp-...
 SLACK_BOT_TOKEN=xoxb-...
 ANTHROPIC_API_KEY=sk-ant-...
+GITHUB_TOKEN=ghp-...  # Required for DSPy docs server
 ```
 
 ## TypeScript Configuration
@@ -242,19 +251,20 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 ```
 
-2. Server configuration:
+2. Server configuration with environment variables:
 ```typescript
-const client = new Client(
-  {
-    name: `mcp-client-${name}`,
-    version: "1.0.0",
-  },
-  {
-    capabilities: {},
+const stringEnv: Record<string, string> = {};
+for (const [key, value] of Object.entries(process.env)) {
+  if (value !== undefined) {
+    stringEnv[key] = value;
   }
-);
+}
 
-const transport = new StdioClientTransport({ command, args });
+const transport = new StdioClientTransport({ 
+  command, 
+  args,
+  env: stringEnv,
+});
 await client.connect(transport);
 ```
 
