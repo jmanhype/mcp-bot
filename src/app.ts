@@ -1,11 +1,16 @@
-import { App, LogLevel, Assistant } from "@slack/bolt";
+import boltPkg from "@slack/bolt";
+const { App, LogLevel, Assistant } = boltPkg;
+import webPkg from "@slack/web-api";
+const { WebClient } = webPkg;
+import type { WebClient as WebClientType } from "@slack/web-api";
 import { config } from "dotenv";
 import Anthropic from "@anthropic-ai/sdk";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types";
-import { mcpManager } from "./mcp-manager";
+import { ListToolsResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { mcpManager } from "./mcp-manager.js";
 import { z } from "zod";
+import { SlackEventMiddlewareArgs } from "@slack/bolt";
 config();
 
 /** Initialization */
@@ -42,6 +47,11 @@ interface SuggestedPrompt {
   message: string;
 }
 
+interface AssistantPrompt {
+  title: string;
+  message: string;
+}
+
 const assistant = new Assistant({
   threadStarted: async ({
     event,
@@ -55,7 +65,7 @@ const assistant = new Assistant({
       await say("Hi, how can I help?");
       await saveThreadContext();
 
-      const prompts: SuggestedPrompt[] = [
+      const prompts: [AssistantPrompt, ...AssistantPrompt[]] = [
         {
           title: "This is a suggested prompt",
           message:
@@ -96,11 +106,18 @@ const assistant = new Assistant({
     say,
     setTitle,
     setStatus,
+  }: {
+    message: SlackMessage;
+    client: WebClientType;
+    getThreadContext: () => Promise<any>;
+    say: (arg: { text: string }) => Promise<any>;
+    setTitle: (title: string) => Promise<any>;
+    setStatus: (status: string) => Promise<any>;
   }) => {
-    const { channel, thread_ts } = message;
+    const { channel, thread_ts = '' } = message;
 
     try {
-      await setTitle(message.text);
+      await setTitle(message.text || '');
       await setStatus("is typing..");
 
       console.log("trying mcp");
@@ -136,7 +153,7 @@ const assistant = new Assistant({
         }
 
         let llmPrompt = `Please generate a brief summary of the following messages from Slack channel <#${threadContext.channel_id}>:`;
-        for (const m of channelHistory.messages.reverse()) {
+        for (const m of channelHistory.messages?.reverse() || []) {
           if (m.user) {
             const formattedText = formatSlackMessage(m.text);
             llmPrompt += `\n<@${m.user}> says: ${formattedText}`;
@@ -167,14 +184,14 @@ const assistant = new Assistant({
 
       const thread = await client.conversations.replies({
         channel,
-        ts: thread_ts,
-        oldest: thread_ts,
+        ts: thread_ts || '',
+        oldest: thread_ts || '',
       });
 
-      const userMessage = { role: "user" as const, content: message.text };
+      const userMessage = { role: "user" as const, content: message.text || '' };
       const threadHistory = (thread.messages || [])
-        .filter((m) => (m as unknown as any).subtype !== "assistant_app_thread")
-        .map((m) => {
+        .filter((m: ThreadMessage) => m.subtype !== "assistant_app_thread")
+        .map((m: ThreadMessage) => {
           const role = m.bot_id ? ("assistant" as const) : ("user" as const);
           const formattedText = formatSlackMessage(m.text);
           return { role, content: formattedText || "" };
@@ -268,7 +285,7 @@ const assistant = new Assistant({
       const llmResponse = await anthropic.messages.create({
         model: "claude-3-5-sonnet-latest",
         system: DEFAULT_SYSTEM_CONTENT,
-        messages: threadHistory.map((msg) => ({
+        messages: threadHistory.map((msg: { role: string; content: string }) => ({
           role: msg.role === "assistant" ? "assistant" : "user",
           content: msg.content,
         })),
@@ -318,16 +335,16 @@ app.assistant(assistant);
 (async () => {
   try {
     // Add default MCP server if needed
-    await mcpManager.addServer("amazon-fresh", "node", [
-      "/Users/alecv/dev/newform/random/amazon-fresh-server/build/index.js",
-    ]);
+    // await mcpManager.addServer("amazon-fresh", "node", [
+    //   "/Users/speed/mcp-bot/amazon-fresh-server/build/index.js",
+    // ]);
 
-    await mcpManager.addServer("python-local", "uv", [
-      "--directory",
-      "/Users/alecv/dev/random/imessage/python_local",
-      "run",
-      "python-local",
-    ]);
+    // await mcpManager.addServer("python-local", "uv", [
+    //   "--directory",
+    //   "/Users/speed/mcp-bot/python_local",
+    //   "run",
+    //   "python-local",
+    // ]);
 
     // Start Bolt app
     await app.start();
@@ -391,11 +408,21 @@ type ToolServerMapping = {
 // Add this as a module-level variable
 let toolToServerMap: ToolServerMapping = {};
 
-// Update the getAllTools function to build the mapping
-const getAllTools = async () => {
+// Add this type for Anthropic tools
+interface AnthropicTool {
+  name: string;
+  description: string | undefined;
+  input_schema: {
+    type: "object";
+    properties: Record<string, unknown>;
+  };
+}
+
+// Update getAllTools to use MCP
+const getAllTools = async (): Promise<AnthropicTool[]> => {
   const managementTools = MCP_MANAGEMENT_TOOLS;
   const mcpTools = [];
-  toolToServerMap = {}; // Reset the mapping
+  toolToServerMap = {};
 
   for (const server of mcpManager.getAllServers()) {
     if (!server.client) continue;
@@ -405,7 +432,6 @@ const getAllTools = async () => {
         ListToolsResultSchema
       );
       
-      // Add each tool to the mapping
       for (const tool of serverTools.tools) {
         toolToServerMap[tool.name] = {
           server: server.name,
@@ -422,8 +448,8 @@ const getAllTools = async () => {
     name: tool.name,
     description: tool.description,
     input_schema: {
-      type: "object",
-      properties: tool.inputSchema.properties,
+      type: "object" as const,
+      properties: tool.inputSchema.properties || {},
     },
   }));
 };
@@ -433,4 +459,22 @@ function formatSlackMessage(text: string = ""): string {
   // Convert Slack's <http://example.com|text> format to just the text portion
   return text.replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, "$2")
              .replace(/<(https?:\/\/[^>]+)>/g, "$1");
+}
+
+// Add ThreadMessage interface
+interface ThreadMessage {
+  bot_id?: string;
+  text?: string;
+  subtype?: string;
+  user?: string;
+}
+
+// Define the message interface
+interface SlackMessage {
+  channel: string;
+  thread_ts?: string;
+  text?: string;
+  user?: string;
+  bot_id?: string;
+  subtype?: string;
 }

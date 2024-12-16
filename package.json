@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A template for building Slack app Assistants",
   "main": "dist/app.js",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "npm run build && node dist/app.js",
