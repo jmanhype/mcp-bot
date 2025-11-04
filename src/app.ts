@@ -13,6 +13,25 @@ import { z } from "zod";
 import { SlackEventMiddlewareArgs } from "@slack/bolt";
 config();
 
+/**
+ * Validate required environment variables
+ * @throws {Error} If any required variables are missing
+ */
+function validateEnvironment(): void {
+  const required = ['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN', 'ANTHROPIC_API_KEY'];
+  const missing = required.filter(key => !process.env[key]);
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}\n` +
+      `Please check your .env file. See .env.sample for reference.`
+    );
+  }
+}
+
+// Validate environment before initialization
+validateEnvironment();
+
 /** Initialization */
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -201,25 +220,34 @@ const assistant = new Assistant({
         threadHistory.push(userMessage);
       }
 
-      // Process any tool calls from Claude's response
+      /**
+       * Process tool calls from Claude's response
+       * @param content - Content block from Claude's response
+       * @returns Tool execution result or null if not a tool use
+       */
       const processToolCalls = async (
         content: Anthropic.Messages.ContentBlock
-      ) => {
+      ): Promise<unknown> => {
         console.log("content", content);
         if (content.type === "tool_use") {
           const call = content;
-          
+          const input = call.input as MCPToolInput;
+
           // Handle MCP management tools
           if (call.name === "add_mcp_server") {
-            const { name, command, args } = call.input as { name: string; command: string; args: string[] };
-            await mcpManager.addServer(name, command, args);
-            return { success: true, message: `Added MCP server: ${name}` };
+            if (!input.name || !input.command || !input.args) {
+              throw new Error("Missing required parameters for add_mcp_server");
+            }
+            await mcpManager.addServer(input.name, input.command, input.args);
+            return { success: true, message: `Added MCP server: ${input.name}` };
           }
 
           if (call.name === "remove_mcp_server") {
-            const { name } = call.input as { name: string };
-            await mcpManager.removeServer(name);
-            return { success: true, message: `Removed MCP server: ${name}` };
+            if (!input.name) {
+              throw new Error("Missing required parameter: name");
+            }
+            await mcpManager.removeServer(input.name);
+            return { success: true, message: `Removed MCP server: ${input.name}` };
           }
 
           if (call.name === "list_mcp_servers") {
@@ -364,19 +392,28 @@ app.assistant(assistant);
 /** Start the MCP Client and Bolt App */
 (async () => {
   try {
-    // Add dspy-docs MCP server with environment variables
-    await mcpManager.addServer(
-      "dspy-docs",
-      "node",
-      ["/Users/speed/mcp-bot/MCP/dspy-docs-server/build/index.js"],
-      process.env
-    );
+    // Add dspy-docs MCP server with environment variables if configured
+    const dspyDocsPath = process.env.DSPY_DOCS_SERVER_PATH;
+    if (dspyDocsPath) {
+      try {
+        await mcpManager.addServer(
+          "dspy-docs",
+          "node",
+          [dspyDocsPath],
+          process.env
+        );
+        console.log("✅ dspy-docs MCP server loaded");
+      } catch (error) {
+        console.warn("⚠️ Failed to load dspy-docs MCP server:", error);
+      }
+    }
 
     // Start Bolt app
     await app.start();
     console.log("⚡️ Bolt app is running!");
   } catch (error) {
     console.error("Failed to start the app", error);
+    process.exit(1);
   }
 })();
 
@@ -434,7 +471,7 @@ type ToolServerMapping = {
 // Add this as a module-level variable
 let toolToServerMap: ToolServerMapping = {};
 
-// Add this type for Anthropic tools
+/** Type definition for Anthropic-compatible tool schema */
 interface AnthropicTool {
   name: string;
   description: string | undefined;
@@ -442,6 +479,14 @@ interface AnthropicTool {
     type: "object";
     properties: Record<string, unknown>;
   };
+}
+
+/** Type for MCP tool input */
+interface MCPToolInput {
+  name?: string;
+  command?: string;
+  args?: string[];
+  [key: string]: unknown;
 }
 
 // Update getAllTools to use MCP
