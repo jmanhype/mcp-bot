@@ -1,99 +1,98 @@
-# Microsoft Bot - AI Assistant with MCP Integration
+# mcp-bot
 
-A Slack AI assistant powered by Claude 3.5 Sonnet that combines Microsoft's enthusiasm with modern AI capabilities. The bot integrates the Model Context Protocol (MCP) to enable dynamic tool usage and extensibility.
+Slack bot that uses Claude 3.5 Sonnet as the LLM backend and dynamically discovers tools from MCP servers. The bot runs in Socket Mode as a Slack Assistant and can manage MCP server connections at runtime.
 
-## Features
+## What It Does
 
-- 🤖 Microsoft-themed AI assistant with Claude 3.5 Sonnet integration
-- 🔧 Dynamic tool management through MCP (Model Context Protocol)
-- 📊 Channel summarization capabilities
-- 💬 Threaded conversations with context awareness
-- 🛠️ Extensible tool system with runtime server management
+Listens in Slack threads via the Bolt.js Assistant API. When a user sends a message, the bot:
+1. Collects thread history
+2. Queries connected MCP servers for available tools
+3. Sends the message + tools to Claude 3.5 Sonnet
+4. Executes any tool calls against the originating MCP server
+5. Returns the final response in-thread
 
-## Prerequisites
+Also supports channel summarization (fetches last 50 messages and passes them to Claude).
 
-- Slack workspace with admin permissions
-- Anthropic API key
-- Node.js installed
-- (Optional) Python with uv installed for Python-based tools
+The bot has a "Microsoft Certified Professional" persona — it references Clippy and Teams but otherwise works normally.
 
-## Environment Variables
+## Status
 
-Create a `.env` file with the following:
+| Area | State |
+|------|-------|
+| Slack transport | Socket Mode (bolt.js ^4.1.1) |
+| LLM | Claude 3.5 Sonnet via Anthropic SDK |
+| MCP client | `@modelcontextprotocol/sdk` ^1.0.3 |
+| Language | TypeScript |
+| License | MIT |
+| CI | Biome linting via GitHub Actions |
 
-```env
-SLACK_BOT_TOKEN=xoxb-your-bot-token
-SLACK_APP_TOKEN=xapp-your-app-token
-ANTHROPIC_API_KEY=your-anthropic-key
+## Architecture
+
+```
+src/
+  app.ts          — Bolt.js app, Assistant handler, tool dispatch loop
+  mcp-manager.ts  — Manages MCP server lifecycle (add/remove/list)
+MCP/
+  dspy-docs-server/ — Bundled MCP server for DSPy documentation
 ```
 
-## Installation
+The bot maintains a `toolToServerMap` that tracks which MCP server provides each tool. When Claude returns a `tool_use` block, the bot routes the call to the correct server.
 
-1. Clone the repository
-2. Install dependencies:
+## MCP Server Management
+
+Three built-in tools let you manage servers from within Slack:
+
+| Command | What it does |
+|---------|-------------|
+| `add_mcp_server` | Registers a new MCP server by name, command, and args |
+| `remove_mcp_server` | Disconnects and removes a server |
+| `list_mcp_servers` | Returns all registered servers |
+
+Servers communicate over stdio. One server (`dspy-docs`) is added by default on startup.
+
+## Setup
+
 ```bash
 npm install
-```
-3. Create and configure your Slack app:
-   - Create a new Slack app at https://api.slack.com/apps
-   - Add necessary bot scopes (messages, channels, etc.)
-   - Install the app to your workspace
-   - Copy the bot and app tokens to your `.env` file
-
-## MCP Server Integration
-
-The bot supports dynamic integration with MCP servers. Two example servers are included:
-
-1. Amazon Fresh Server
-2. Python Local Server
-
-You can add new MCP servers at runtime using the bot's commands:
-
-```
-add_mcp_server [name] [command] [args...]
-remove_mcp_server [name]
-list_mcp_servers
-```
-
-## Running the Bot
-
-```bash
+npm run build
 npm start
 ```
 
-## Features in Detail
+### Environment Variables
 
-### Channel Summarization
-Users can request a summary of recent channel activity using the command:
-```
-Assistant, please summarize the activity in this channel!
-```
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SLACK_BOT_TOKEN` | Yes | `xoxb-` bot token |
+| `SLACK_APP_TOKEN` | Yes | `xapp-` app-level token for Socket Mode |
+| `ANTHROPIC_API_KEY` | Yes | Anthropic API key |
 
-### Conversation Context
-The bot maintains conversation context within threads and can:
-- Process message history
-- Handle tool calls dynamically
-- Maintain consistent Microsoft-themed personality
-- Format messages appropriately for Slack
+### Slack App Configuration
 
-### Tool Integration
-- Dynamic tool discovery from MCP servers
-- Runtime server management
-- Tool call processing with result handling
-- Automatic server reconnection
+1. Create app at https://api.slack.com/apps
+2. Enable Socket Mode
+3. Add bot scopes: `chat:write`, `channels:history`, `groups:history`, `assistant:write`
+4. Install to workspace
+5. Copy tokens to `.env`
 
-## Development
+## Limitations
 
-### Project Structure
-- `src/app.ts`: Main application logic
-- `src/mcp-manager.ts`: MCP server management
-- Tool servers: Separate processes that provide additional functionality
+- Tool call loop is single-pass: if Claude returns multiple tool calls, each gets a separate follow-up LLM call rather than batching results
+- Thread context is rebuilt from Slack API on every message (no local cache)
+- The hardcoded `dspy-docs` server path points to a local filesystem path (`/Users/speed/mcp-bot/MCP/...`)
+- No retry logic for MCP server connections
+- No rate limiting on Anthropic API calls
+- Channel summarization is capped at 50 messages
 
-### Adding New Tools
-1. Create a new MCP-compatible server
-2. Add the server using the bot's `add_mcp_server` command
-3. Tools will be automatically discovered and made available
+## Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@slack/bolt` | ^4.1.1 | Slack app framework |
+| `@anthropic-ai/sdk` | ^0.32.1 | Claude API client |
+| `@modelcontextprotocol/sdk` | ^1.0.3 | MCP client transport |
+| `openai` | ^4.74.0 | Listed but unused in current code |
+| `typescript` | ^5.3.3 | Build toolchain |
 
 ## License
 
-[Add your license information here]
+MIT
